@@ -1,25 +1,141 @@
-import logo from './logo.svg';
-import './App.css';
+import React, { Component } from "react";
+import Navigation from "./Components/Navigation/Navigation";
+import FaceRecognition from "./Components/FaceRecognition/FaceRecognition";
+import Logo from "./Components/Logo/Logo";
+import Signin from "./Components/Signin/Signin";
+import Register from "./Components/Register/Register";
+import ImageLinkForm from "./Components/ImageLinkForm/ImageLinkForm";
+import Rank from "./Components/Rank/Rank";
+import Clarifai from "clarifai";
+import "./App.css";
+import "tachyons";
+import ParticlesBg from "particles-bg";
 
-function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+const app = new Clarifai.App({
+  apiKey: "be7ea216185f4272bbaf15b9869eb7b9",
+}); 
+
+const returnClarifaiRequestOptions=(imageUrl)=>{
+ const PAT = '855f5da30efa48cfb79b1c44d09fc3a1';
+ const USER_ID = 'bimbito';       
+ const APP_ID = 'SmartBrainApi';
+ const IMAGE_URL = imageUrl;
+
+ const raw = JSON.stringify({
+  "user_app_id": {
+      "user_id": USER_ID,
+      "app_id": APP_ID
+  },
+  "inputs": [
+      {
+          "data": {
+              "image": {
+                  "url": IMAGE_URL
+              }
+          }
+      }
+  ]
+});
+return {
+  method: 'POST',
+  headers: {
+      'Accept': 'application/json',
+      'Authorization': 'Key ' + PAT
+  },
+  body: raw
+};
+}
+
+
+
+class App extends Component {
+  constructor() {
+    super();
+    this.state = {
+      input: '',
+      imageUrl:'',
+      box:{},
+      route: 'signin',
+      isSignedIn: false
+    };
+  }
+
+  onInputChange = (event) => {
+    this.setState({input: event.target.value});
+  };
+
+
+
+  calculateFaceLocation = (data) => {
+    
+    const clarifaiFace = data.outputs[0].data.regions[0].region_info.bounding_box;
+    const image = document.getElementById('inputimage');
+    const width = Number(image.width);
+    const height =  Number(image.height);
+   return{
+    leftCol:clarifaiFace.left_col * width,
+    topRow:clarifaiFace.top_row * height,
+    rightcol:width - (clarifaiFace.right_col * width) ,
+    bottomRow:height -(clarifaiFace.bottom_row * height)
+   }
+
+  }
+
+  displayFaceBox = (box) => {
+    this.setState({ box : box });
+
+  }
+
+  onButtonSubmit = () => {
+
+    this.setState({imageUrl:this.state.input});
+    app.models
+      .predict(
+        'face-detection',
+         this.state.input
+      )
+        
+      // eslint-disable-next-line no-useless-concat
+      fetch("https://api.clarifai.com/v2/models/" + 'face-detection' +  "/outputs", returnClarifaiRequestOptions(this.state.input))
+      .then(response => response.json())
+      .then(response=>this.displayFaceBox(this.calculateFaceLocation(response)))
+      .catch(err=>console.log(err));
+  };
+
+  onRouteChange= (route) =>{
+    if (route === 'signout') {
+      this.setState({isSignedIn:false})
+    }else if(route === 'home'){
+      this.setState({isSignedIn:true})
+    }
+    this.setState({route : route});
+  }
+  render() {
+    return (
+      <div className="App">
+        <ParticlesBg type="polygon" bg={true} className="particles" />
+        <Navigation isSignedin={this.state.isSignedIn} onRouteChange={this.onRouteChange}/>
+        {this.state.route === 'home' 
+        ?
+         <div>
+        <Logo />
+        <Rank />
+        <ImageLinkForm
+          onInputChange={this.onInputChange}
+          onButtonSubmit={this.onButtonSubmit}
+        />
+        <FaceRecognition box={this.state.box} imageUrl={this.state.imageUrl}/>
+        </div>
+        :(
+          this.state.route === 'signin' ?<Signin onRouteChange={this.onRouteChange}/>
+          :<Register onRouteChange={this.onRouteChange}/>
+        )
+        }
+        
+
+      </div>
+    );
+  }
 }
 
 export default App;
