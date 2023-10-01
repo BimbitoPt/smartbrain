@@ -1,8 +1,19 @@
 .bounding-box {
-    position: absolute;
-    box-shadow: 0 0 0 3px #149df2 inset;
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    cursor: pointer;
-  }
+  position: absolute;    /* Absolute positioning for precise placement */
+  box-shadow: 0 0 0 3px #149df2 inset; /* Blue box-shadow around the detected face */
+  display: flex;         /* Use flexbox to center content */
+  flex-wrap: wrap;       /* Allow wrapping of content within the box */
+  justify-content: center; /* Center the content horizontally */
+  cursor: pointer;       /* Set a pointer cursor to indicate interactivity */
+
+  /* Additional styling (you can adjust these as needed) */
+  border: 2px solid #149df2; /* Add a border for visual distinction */
+  border-radius: 3px;        /* Add rounded corners for a softer look */
+  transition: all 0.2s;      /* Apply smooth transition effects on hover */
+}
+
+/* Optional: Add hover effect to change box-shadow color */
+.bounding-box:hover {
+  box-shadow: 0 0 0 3px #ff6347 inset; /* Change box-shadow color on hover */
+  border-color: #ff6347;                /* Change border color on hover */
+}

@@ -6,45 +6,12 @@ import Signin from "./Components/Signin/Signin";
 import Register from "./Components/Register/Register";
 import ImageLinkForm from "./Components/ImageLinkForm/ImageLinkForm";
 import Rank from "./Components/Rank/Rank";
-import Clarifai from "clarifai";
+
 import "./App.css";
 import "tachyons";
 import ParticlesBg from "particles-bg";
 
-const app = new Clarifai.App({
-  apiKey: "be7ea216185f4272bbaf15b9869eb7b9",
-}); 
 
-const returnClarifaiRequestOptions=(imageUrl)=>{
- const PAT = '855f5da30efa48cfb79b1c44d09fc3a1';
- const USER_ID = 'bimbito';       
- const APP_ID = 'SmartBrainApi';
- const IMAGE_URL = imageUrl;
-
- const raw = JSON.stringify({
-  "user_app_id": {
-      "user_id": USER_ID,
-      "app_id": APP_ID
-  },
-  "inputs": [
-      {
-          "data": {
-              "image": {
-                  "url": IMAGE_URL
-              }
-          }
-      }
-  ]
-});
-return {
-  method: 'POST',
-  headers: {
-      'Accept': 'application/json',
-      'Authorization': 'Key ' + PAT
-  },
-  body: raw
-};
-}
 
 const initialState ={
   input: '',
@@ -84,56 +51,77 @@ class App extends Component {
 
 
   calculateFaceLocation = (data) => {
+    if (!data || !data.outputs || !data.outputs[0].data || !data.outputs[0].data.regions || data.outputs[0].data.regions.length === 0) {
+      return []; // Return an empty array for no faces detected.
+    }
     
-    const clarifaiFace = data.outputs[0].data.regions[0].region_info.bounding_box;
-    const image = document.getElementById('inputimage');
-    const width = Number(image.width);
-    const height =  Number(image.height);
-   return{
-    leftCol:clarifaiFace.left_col * width,
-    topRow:clarifaiFace.top_row * height,
-    rightcol:width - (clarifaiFace.right_col * width) ,
-    bottomRow:height -(clarifaiFace.bottom_row * height)
-   }
-
+    const faceLocations = data.outputs[0].data.regions.map(region => {
+      const clarifaiFace = region.region_info.bounding_box;
+      const image = document.getElementById('inputimage');
+      const width = Number(image.width);
+      const height = Number(image.height);
+      
+      return {
+        leftCol: clarifaiFace.left_col * width,
+        topRow: clarifaiFace.top_row * height,
+        rightCol: width - (clarifaiFace.right_col * width),
+        bottomRow: height - (clarifaiFace.bottom_row * height)
+      };
+    });
+  
+    return faceLocations;
   }
 
-  displayFaceBox = (box) => {
-    this.setState({ box : box });
-
+  displayFaceBox = (faceLocations) => {
+    this.setState({ faceLocations });
   }
 
   onPictureSubmit = () => {
-
-    this.setState({imageUrl:this.state.input});
-    app.models
-      .predict(
-        'face-detection',
-         this.state.input
-      )
-        
-      // eslint-disable-next-line no-useless-concat
-      fetch("https://api.clarifai.com/v2/models/" + 'face-detection' +  "/outputs", returnClarifaiRequestOptions(this.state.input))
-      .then(response => response.json())
-      .then(response=>{
-        if(response){
-          fetch('http://localhost:3000/image',{
+    this.setState({ imageUrl: this.state.input });
+  
+    fetch('http://localhost:3000/imageurl', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input: this.state.input
+      })
+    })
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        } else {
+          throw new Error('Error fetching data from the server');
+        }
+      })
+      .then(response => {
+        if (response) {
+          fetch('http://localhost:3000/image', {
             method: 'put',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               id: this.state.user.id
+            })
           })
-        }).then(response => response.json()).then(count => {
-          this.setState(
-            Object.assign(this.state.user,{entries: count})
-          )
-        })
-        .catch(console.log)
+            .then(response => {
+              if (response.ok) {
+                return response.json();
+              } else {
+                throw new Error('Error updating user data');
+              }
+            })
+            .then(count => {
+              this.setState(Object.assign(this.state.user, { entries: count }))
+            })
+            .catch(error => {
+              console.error('Error updating user data:', error);
+            });
         }
-        this.displayFaceBox(this.calculateFaceLocation(response))
+        this.displayFaceBox(this.calculateFaceLocation(response));
       })
-      .catch(err=>console.log(err));
-  };
+      .catch(error => {
+        console.error('Error fetching data from the server:', error);
+      });
+  }
 //----------------------------------------------------------------
   onRouteChange= (route) =>{
     if (route === 'signout') {
@@ -157,7 +145,7 @@ class App extends Component {
           onInputChange={this.onInputChange}
           onPictureSubmit={this.onPictureSubmit}
         />
-        <FaceRecognition box={this.state.box} imageUrl={this.state.imageUrl}/>
+        <FaceRecognition faceLocations={this.state.faceLocations} imageUrl={this.state.imageUrl}/>
         </div>
         :(
           this.state.route === 'signin' ?
